@@ -105,11 +105,21 @@
             <RadioButton x:Name="StartupNo" GroupName="Startup" Content="No" />
         </StackPanel>
 
+        <!-- Hotkey -->
+        <TextBlock Text="Show / hide notes hotkey" Style="{StaticResource SectionTitle}" Margin="0,20,0,8" />
+        <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Clear" Margin="8,0,0,0" Click="ClearHotkey_Click" />
+            <TextBox x:Name="HotkeyBox" IsReadOnly="True" VerticalContentAlignment="Center" Padding="4,3"
+                     AutomationProperties.Name="Show or hide notes hotkey"
+                     PreviewKeyDown="HotkeyBox_PreviewKeyDown" />
+        </DockPanel>
+        <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#555"
+                   Text="Click the box and press a combination such as Ctrl+Alt+N. Press it again to send the notes back to the desktop." />
+
         <TextBlock x:Name="ErrorText" Margin="0,16,0,0" Foreground="#B00020" TextWrapping="Wrap" Visibility="Collapsed" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
             <Button x:Name="SaveButton" Content="Get started" IsDefault="True" Click="Save_Click" />
-            <Button x:Name="CancelButton" Content="Cancel" IsCancel="True" Margin="8,0,0,0" Visibility="Collapsed" />
         </StackPanel>
     </StackPanel>
 </Window>

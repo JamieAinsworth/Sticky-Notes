@@ -73,6 +73,8 @@
                             ToolTip="Delete note" Click="Delete_Click" />
                     <Button x:Name="ColorButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}"
                             Content="&#xE790;" ToolTip="Change colour" Click="Color_Click" />
+                    <Button x:Name="OnTopButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                            Content="&#xE74A;" ToolTip="Keep above all windows" Click="OnTop_Click" />
                     <Button x:Name="PinButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}"
                             Content="&#xE718;" ToolTip="Pin in place" Click="Pin_Click" />
                 </DockPanel>
@@ -84,7 +86,6 @@
                          Padding="6,6,4,6"
                          AcceptsReturn="True" AcceptsTab="True"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                         SpellCheck.IsEnabled="True"
                          PreviewKeyDown="Editor_PreviewKeyDown"
                          PreviewTextInput="Editor_PreviewTextInput">
                 <RichTextBox.Resources>

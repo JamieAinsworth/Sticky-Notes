@@ -17,6 +17,7 @@ public partial class App : Application
     private EventWaitHandle? _newNoteSignal;
     private NoteManager? _manager;
     private TrayIcon? _tray;
+    private HotkeyManager? _hotkey;
     private SetupWindow? _settingsWindow;
     private bool _exiting;
 
@@ -91,6 +92,8 @@ public partial class App : Application
 
         _manager = new NoteManager();
         _tray = new TrayIcon(_manager, OpenSettings, ExitApp);
+        _hotkey = new HotkeyManager(() => _manager?.ToggleForward());
+        _hotkey.Register(AppSettings.Current.ToggleHotkey);
         int shown = _manager.LoadAndShow();
 
         // Opened by hand with no notes: start with one so something visibly happens.
@@ -173,7 +176,13 @@ public partial class App : Application
         _settingsWindow = new SetupWindow(firstRun: false, saveCurrentNotes: () => _manager?.SaveNow());
         _settingsWindow.Closed += (_, _) =>
         {
-            if (_settingsWindow.Saved) _tray?.RefreshColour();
+            if (_settingsWindow.Saved)
+            {
+                _tray?.RefreshColour();
+                if (_hotkey?.Register(AppSettings.Current.ToggleHotkey) == false)
+                    MessageBox.Show("That hotkey couldn't be registered; it may be in use by another app. Choose a different one in Settings.",
+                        "Sticky Notes", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
             if (_settingsWindow.ReloadNotes) _manager?.Reload();
             _settingsWindow = null;
         };
@@ -197,6 +206,7 @@ public partial class App : Application
         _exiting = true;
         _manager?.Shutdown();
         _tray?.Dispose();
+        _hotkey?.Dispose();
         _newNoteSignal?.Dispose();
         if (_mutex != null)
         {

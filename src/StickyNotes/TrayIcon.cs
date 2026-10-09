@@ -58,7 +58,7 @@ public sealed class TrayIcon : IDisposable
         };
         _notifyIcon.MouseDoubleClick += (_, e) =>
         {
-            if (e.Button == MouseButtons.Left) manager.CreateNote();
+            if (e.Button == MouseButtons.Left) manager.BringForward();
         };
     }
 

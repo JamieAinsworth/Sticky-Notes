@@ -14,6 +14,9 @@ public sealed class NoteData
     public string Color { get; set; } = AppSettings.Current.DefaultColor;
     public bool Pinned { get; set; }
 
+    /// <summary>Keeps the note above all other windows.</summary>
+    public bool AlwaysOnTop { get; set; }
+
     /// <summary>Rich content serialized as WPF FlowDocument XAML.</summary>
     public string Content { get; set; } = string.Empty;
 

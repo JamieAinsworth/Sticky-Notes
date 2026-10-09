@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Microsoft.Win32;
 
 namespace StickyNotes;
@@ -19,7 +20,7 @@ public partial class SetupWindow : Window
     /// <summary>True when the app switched to a folder that already had notes, so they need loading.</summary>
     public bool ReloadNotes { get; private set; }
 
-    /// <param name="firstRun">Shows the welcome text and no Cancel button.</param>
+    /// <param name="firstRun">Shows the welcome text.</param>
     /// <param name="saveCurrentNotes">Flushes open notes to disk before they're moved to a new folder.</param>
     public SetupWindow(bool firstRun, Action? saveCurrentNotes)
     {
@@ -33,6 +34,7 @@ public partial class SetupWindow : Window
         ColourName.Text = _selectedColour;
 
         FolderBox.Text = settings.ResolvedDataFolder;
+        HotkeyBox.Text = settings.ToggleHotkey ?? string.Empty;
 
         bool startup = false;
         try { startup = StartupManager.IsEnabled; } catch { }
@@ -45,9 +47,30 @@ public partial class SetupWindow : Window
             Heading.Text = "Settings";
             Intro.Text = "Changing the default colour only affects new notes.";
             SaveButton.Content = "Save";
-            CancelButton.Visibility = Visibility.Visible;
         }
     }
+
+    private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        e.Handled = true;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var modifiers = Keyboard.Modifiers;
+
+        if (modifiers == ModifierKeys.None && key is Key.Back or Key.Delete or Key.Escape)
+        {
+            HotkeyBox.Text = string.Empty;
+            return;
+        }
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift
+            or Key.LWin or Key.RWin or Key.None or Key.DeadCharProcessed or Key.ImeProcessed)
+            return;
+        if (modifiers == ModifierKeys.None) return;
+
+        HotkeyBox.Text = HotkeyManager.Format(modifiers, key);
+        ErrorText.Visibility = Visibility.Collapsed;
+    }
+
+    private void ClearHotkey_Click(object sender, RoutedEventArgs e) => HotkeyBox.Text = string.Empty;
 
     private void Swatch_Loaded(object sender, RoutedEventArgs e)
     {
@@ -117,6 +140,7 @@ public partial class SetupWindow : Window
         var settings = new AppSettings
         {
             DefaultColor = _selectedColour,
+            ToggleHotkey = string.IsNullOrWhiteSpace(HotkeyBox.Text) ? null : HotkeyBox.Text,
             DataFolder = AppSettings.IsSameFolder(folder, AppSettings.DefaultDataFolder) ? null : folder,
         };
 
