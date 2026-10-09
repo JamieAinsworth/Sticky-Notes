@@ -41,6 +41,7 @@ public partial class NoteWindow : Window
         LoadContent();
         ApplyColor(NoteColors.Get(data.Color));
         ApplyPinned(data.Pinned);
+        ApplyAlwaysOnTop(data.AlwaysOnTop);
 
         DataObject.AddPastingHandler(Editor, OnPaste);
         Editor.TextChanged += Editor_TextChanged;
@@ -54,7 +55,8 @@ public partial class NoteWindow : Window
         Deactivated += (_, _) =>
         {
             Toolbar.Visibility = Visibility.Collapsed;
-            SendToBottom();
+            ApplyZOrder();
+            _manager.NoteDeactivated();
         };
         StateChanged += (_, _) =>
         {
@@ -78,7 +80,24 @@ public partial class NoteWindow : Window
         if (progman != IntPtr.Zero)
             NativeMethods.SetWindowLongPtr(_hwnd, NativeMethods.GWLP_HWNDPARENT, progman);
 
-        SendToBottom();
+        ApplyZOrder();
+    }
+
+    /// <summary>Notes sit on the desktop layer unless raised by the tray/hotkey or set to stay on top.</summary>
+    public void ApplyZOrder()
+    {
+        bool top = _manager.Raised || Data.AlwaysOnTop;
+
+        // A note owned by the desktop is raised together with its siblings when clicked, so notes that
+        // stay on top are left unowned to keep that from dragging the other notes forward.
+        if (_hwnd != IntPtr.Zero)
+        {
+            var owner = Data.AlwaysOnTop ? IntPtr.Zero : NativeMethods.GetDesktopProgman();
+            if (NativeMethods.GetWindowLongPtr(_hwnd, NativeMethods.GWLP_HWNDPARENT) != owner)
+                NativeMethods.SetWindowLongPtr(_hwnd, NativeMethods.GWLP_HWNDPARENT, owner);
+        }
+        if (Topmost != top) Topmost = top;
+        if (!top) SendToBottom();
     }
 
     private void SendToBottom()
@@ -171,6 +190,20 @@ public partial class NoteWindow : Window
     {
         ApplyPinned(!Data.Pinned);
         _manager.RequestSave();
+    }
+
+    private void OnTop_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyAlwaysOnTop(!Data.AlwaysOnTop);
+        _manager.RequestSave();
+    }
+
+    private void ApplyAlwaysOnTop(bool onTop)
+    {
+        Data.AlwaysOnTop = onTop;
+        OnTopButton.Tag = onTop ? "Active" : null;
+        OnTopButton.ToolTip = onTop ? "Stop keeping above other windows" : "Keep above all windows";
+        ApplyZOrder();
     }
 
     private void ApplyPinned(bool pinned)

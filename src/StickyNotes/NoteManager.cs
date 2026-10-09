@@ -34,6 +34,54 @@ public sealed class NoteManager
         _recreateTimer.Tick += (_, _) => TryRecreatePending();
     }
 
+    /// <summary>True while all notes are brought in front of other windows.</summary>
+    public bool Raised { get; private set; }
+
+    private bool _stickyRaise;
+
+    /// <summary>
+    /// Brings every note in front of other windows. A temporary raise (tray double-click) drops back to the
+    /// desktop once focus leaves the notes; a sticky one (hotkey) stays until toggled off.
+    /// </summary>
+    public void BringForward(bool sticky = false)
+    {
+        Raised = true;
+        _stickyRaise = sticky;
+        foreach (var window in _windows) window.ApplyZOrder();
+        if (_windows.Count == 0 || sticky) return;
+
+        _windows[0].Activate();
+        // If Windows refused to give focus, no deactivation would ever happen, so keep them raised until toggled.
+        Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+        {
+            if (Raised && !_stickyRaise && !_windows.Any(w => w.IsActive)) _stickyRaise = true;
+        });
+    }
+
+    /// <summary>Called when a note loses focus; ends a temporary raise once no note has focus.</summary>
+    public void NoteDeactivated()
+    {
+        if (!Raised || _stickyRaise) return;
+        Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            if (Raised && !_stickyRaise && !_windows.Any(w => w.IsActive)) SendToDesktop();
+        });
+    }
+
+    /// <summary>Puts every note back on the desktop layer.</summary>
+    public void SendToDesktop()
+    {
+        Raised = false;
+        _stickyRaise = false;
+        foreach (var window in _windows) window.ApplyZOrder();
+    }
+
+    public void ToggleForward()
+    {
+        if (Raised) SendToDesktop();
+        else BringForward(sticky: true);
+    }
+
     /// <summary>Shows the saved notes and returns how many there were.</summary>
     public int LoadAndShow()
     {
