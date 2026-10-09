@@ -1,0 +1,130 @@
+<Window x:Class="StickyNotes.NoteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Sticky Note"
+        Width="280" Height="280" MinWidth="180" MinHeight="140"
+        WindowStyle="None" ResizeMode="CanResize" ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        Background="#FFF9B1"
+        FontFamily="Segoe UI" FontSize="14"
+        UseLayoutRounding="True">
+
+    <Window.Resources>
+        <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#D0000000" />
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4"
+                                BorderBrush="Transparent" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#22000000" />
+                            </Trigger>
+                            <!-- Tag="Active" marks a formatting button whose style applies at the caret/selection -->
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="Bd" Property="Background" Value="#38000000" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#70000000" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3A000000" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FormatButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+    </Window.Resources>
+
+    <Border BorderBrush="#33000000" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="30" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Header: drag to move -->
+            <Border x:Name="Header" Grid.Row="0" Background="#F5E77A" Cursor="SizeAll"
+                    MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <DockPanel LastChildFill="False" Margin="2,0">
+                    <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" Content="&#xE710;"
+                            ToolTip="New note" Click="NewNote_Click" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE74D;"
+                            ToolTip="Delete note" Click="Delete_Click" />
+                    <Button x:Name="ColorButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                            Content="&#xE790;" ToolTip="Change colour" Click="Color_Click" />
+                    <Button x:Name="PinButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                            Content="&#xE718;" ToolTip="Pin in place" Click="Pin_Click" />
+                </DockPanel>
+            </Border>
+
+            <!-- Note text: wraps lines and scrolls vertically when it overflows -->
+            <RichTextBox x:Name="Editor" Grid.Row="1"
+                         Background="Transparent" BorderThickness="0" Foreground="#FF202020"
+                         Padding="6,6,4,6"
+                         AcceptsReturn="True" AcceptsTab="True"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                         SpellCheck.IsEnabled="True"
+                         PreviewKeyDown="Editor_PreviewKeyDown"
+                         PreviewTextInput="Editor_PreviewTextInput">
+                <RichTextBox.Resources>
+                    <Style TargetType="Paragraph">
+                        <Setter Property="Margin" Value="0,0,0,2" />
+                    </Style>
+                    <Style TargetType="List">
+                        <Setter Property="Margin" Value="0,0,0,2" />
+                        <Setter Property="Padding" Value="22,0,0,0" />
+                    </Style>
+                </RichTextBox.Resources>
+                <FlowDocument PagePadding="0" />
+            </RichTextBox>
+
+            <!-- Formatting bar: visible while the note is focused -->
+            <Border x:Name="Toolbar" Grid.Row="2" Background="#10000000" Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Margin="4,2">
+                    <Button Style="{StaticResource FormatButton}" x:Name="BoldButton" Content="B" FontWeight="Bold"
+                            ToolTip="Bold (Ctrl+B)"
+                            Command="EditingCommands.ToggleBold" CommandTarget="{Binding ElementName=Editor}" />
+                    <Button Style="{StaticResource FormatButton}" x:Name="ItalicButton" Content="I" FontStyle="Italic"
+                            ToolTip="Italic (Ctrl+I)"
+                            Command="EditingCommands.ToggleItalic" CommandTarget="{Binding ElementName=Editor}" />
+                    <Button Style="{StaticResource FormatButton}" x:Name="UnderlineButton" ToolTip="Underline (Ctrl+U)"
+                            Command="EditingCommands.ToggleUnderline" CommandTarget="{Binding ElementName=Editor}">
+                        <TextBlock Text="U" TextDecorations="Underline" />
+                    </Button>
+                    <Button Style="{StaticResource FormatButton}" x:Name="StrikeButton" ToolTip="Strikethrough (Ctrl+T)"
+                            Click="Strikethrough_Click">
+                        <TextBlock Text="S" TextDecorations="Strikethrough" />
+                    </Button>
+                    <Rectangle Width="1" Margin="4,4" Fill="#33000000" />
+                    <Button Style="{StaticResource FormatButton}" FontFamily="{StaticResource IconFont}"
+                            x:Name="BulletsButton" FontSize="14" Content="&#xE8FD;" ToolTip="Bulleted list (Ctrl+Shift+L, or type &quot;- &quot;)"
+                            Command="EditingCommands.ToggleBullets" CommandTarget="{Binding ElementName=Editor}" />
+                    <Button Style="{StaticResource FormatButton}" x:Name="NumberingButton" Content="1." FontWeight="SemiBold"
+                            ToolTip="Numbered list (Ctrl+Shift+N, or type &quot;1. &quot;)"
+                            Command="EditingCommands.ToggleNumbering" CommandTarget="{Binding ElementName=Editor}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

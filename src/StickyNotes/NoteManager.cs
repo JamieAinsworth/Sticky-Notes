@@ -1,0 +1,196 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+using System.Windows.Threading;
+
+namespace StickyNotes;
+
+public sealed class NoteManager
+{
+    private const double DefaultSize = NoteData.DefaultSize;
+
+    private readonly List<NoteWindow> _windows = new();
+    private readonly List<NoteData> _pendingRecreate = new();
+    private readonly DispatcherTimer _saveTimer;
+    private readonly DispatcherTimer _recreateTimer;
+    private int _recreateAttempts;
+    private bool _shuttingDown;
+    private bool _reloading;
+
+    /// <summary>True while windows are being closed for a reason other than the user deleting them.</summary>
+    public bool AllowClose => _shuttingDown || _reloading;
+
+    public NoteManager()
+    {
+        _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+        _saveTimer.Tick += (_, _) =>
+        {
+            _saveTimer.Stop();
+            SaveNow();
+        };
+
+        _recreateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _recreateTimer.Tick += (_, _) => TryRecreatePending();
+    }
+
+    /// <summary>Shows the saved notes and returns how many there were.</summary>
+    public int LoadAndShow()
+    {
+        var notes = NoteStore.Load();
+        foreach (var note in notes)
+        {
+            EnsureOnScreen(note);
+            ShowNote(note);
+        }
+        return notes.Count;
+    }
+
+    public NoteWindow CreateNote(NoteWindow? from = null)
+    {
+        var data = new NoteData();
+
+        if (from != null)
+        {
+            data.Color = from.Data.Color;
+            data.Width = from.ActualWidth;
+            data.Height = from.ActualHeight;
+            data.Left = from.Left + 32;
+            data.Top = from.Top + 32;
+        }
+        else
+        {
+            var area = SystemParameters.WorkArea;
+            int offset = (_windows.Count % 8) * 32;
+            data.Left = area.Right - DefaultSize - 40 - offset;
+            data.Top = area.Top + 40 + offset;
+        }
+
+        EnsureOnScreen(data);
+        var window = ShowNote(data);
+        window.Activate();
+        window.FocusEditor();
+        RequestSave();
+        return window;
+    }
+
+    private NoteWindow ShowNote(NoteData data)
+    {
+        var window = new NoteWindow(this, data);
+        window.Closed += OnWindowClosed;
+        _windows.Add(window);
+        window.Show();
+        return window;
+    }
+
+    public void DeleteNote(NoteWindow window)
+    {
+        window.IsDeleted = true;
+        window.Close();
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is not NoteWindow window) return;
+        _windows.Remove(window);
+        if (AllowClose) return;
+
+        if (!window.IsDeleted)
+        {
+            // Not closed by the user: the desktop window that owns the notes went away
+            // (e.g. Explorer restarted). Bring the note back once the desktop is available.
+            _pendingRecreate.Add(window.CaptureData());
+            _recreateAttempts = 0;
+            _recreateTimer.Start();
+        }
+
+        RequestSave();
+    }
+
+    private void TryRecreatePending()
+    {
+        _recreateAttempts++;
+        if (NativeMethods.GetDesktopProgman() == IntPtr.Zero && _recreateAttempts < 30) return;
+
+        _recreateTimer.Stop();
+        var notes = _pendingRecreate.ToList();
+        _pendingRecreate.Clear();
+        foreach (var note in notes) ShowNote(note);
+        RequestSave();
+    }
+
+    public void RequestSave()
+    {
+        if (_shuttingDown) return;
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    public void SaveNow()
+    {
+        try
+        {
+            var notes = _windows.Select(w => w.CaptureData()).Concat(_pendingRecreate);
+            NoteStore.Save(notes);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("Failed to save notes: " + ex);
+        }
+    }
+
+    /// <summary>Closes all notes and shows the ones saved in the current data folder.</summary>
+    public void Reload()
+    {
+        _saveTimer.Stop();
+        _recreateTimer.Stop();
+        _pendingRecreate.Clear();
+        _reloading = true;
+        try
+        {
+            CloseAllWindows();
+        }
+        finally
+        {
+            _reloading = false;
+        }
+        LoadAndShow();
+    }
+
+    public void Shutdown()
+    {
+        if (_shuttingDown) return;
+        _saveTimer.Stop();
+        _recreateTimer.Stop();
+        SaveNow();
+        _shuttingDown = true;
+        CloseAllWindows();
+    }
+
+    private void CloseAllWindows()
+    {
+        foreach (var window in _windows.ToList()) window.Close();
+        _windows.Clear();
+    }
+
+    private static void EnsureOnScreen(NoteData data)
+    {
+        double vLeft = SystemParameters.VirtualScreenLeft;
+        double vTop = SystemParameters.VirtualScreenTop;
+        double vRight = vLeft + SystemParameters.VirtualScreenWidth;
+        double vBottom = vTop + SystemParameters.VirtualScreenHeight;
+
+        if (double.IsNaN(data.Width) || data.Width < 150) data.Width = DefaultSize;
+        if (double.IsNaN(data.Height) || data.Height < 120) data.Height = DefaultSize;
+
+        // Require at least part of the header to be reachable so the note can be dragged back.
+        bool visible = data.Left + 60 <= vRight && data.Left + data.Width - 60 >= vLeft &&
+                       data.Top >= vTop - 10 && data.Top + 30 <= vBottom;
+        if (!visible || double.IsNaN(data.Left) || double.IsNaN(data.Top))
+        {
+            var area = SystemParameters.WorkArea;
+            data.Left = area.Left + (area.Width - data.Width) / 2;
+            data.Top = area.Top + (area.Height - data.Height) / 2;
+        }
+    }
+}
