@@ -28,6 +28,12 @@ A lightweight sticky-notes app for Windows 10/11 built with WPF (.NET 10).
 | Indent / outdent list item | Tab / Shift+Tab at the start of the item |
 | Bigger / smaller text | Ctrl+] / Ctrl+[ |
 
+## Install
+
+Download `StickyNotes-Setup-<version>.exe` from the [Releases](https://github.com/JamieAinsworth/Sticky-Notes/releases) page and run it. It installs for the current user only (no admin rights needed) into `%LOCALAPPDATA%\Programs\Sticky Notes`, adds a Start menu shortcut, and can be removed from **Settings → Apps**. Uninstalling keeps your notes. The release also includes `StickyNotes-<version>-portable.exe`, a single exe you can run from anywhere without installing.
+
+Neither download needs .NET installed. They aren't code-signed, so Windows SmartScreen may show "Windows protected your PC"; choose **More info → Run anyway**.
+
 ## Build and run
 
 Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download).
@@ -50,3 +56,23 @@ The app is built without a `StickyNotes.exe` launcher (some antivirus tools flag
 ```
 
 Launching the app again while it's running just opens a new note. **Start with Windows** in the tray menu sets up the sign-in launch for you.
+
+### Build the exe and installer
+
+```powershell
+.\build.ps1                              # self-contained artifacts\app\StickyNotes.exe
+.\build.ps1 -Installer -Version 1.2.0    # also artifacts\installer\StickyNotes-Setup-1.2.0.exe
+```
+
+The installer needs [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`). Some antivirus tools block locally built, unsigned exes; if that happens, use the GitHub workflow below instead.
+
+### Publish a GitHub release
+
+Push a version tag, and the [Release workflow](.github/workflows/release.yml) builds the installer and portable exe and attaches them to a new GitHub release:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+To build without publishing a release, run the workflow manually from the **Actions** tab; the files are uploaded as build artifacts.

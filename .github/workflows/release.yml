@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 1.2.3). Uploads build artifacts only; no release is published.'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Work out version
+        id: version
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { $env:INPUT_VERSION }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build exe and installer
+        shell: pwsh
+        run: ./build.ps1 -Installer -Version '${{ steps.version.outputs.value }}'
+
+      - name: Name the portable exe
+        shell: pwsh
+        run: Copy-Item artifacts/app/StickyNotes.exe "artifacts/StickyNotes-${{ steps.version.outputs.value }}-portable.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StickyNotes-${{ steps.version.outputs.value }}
+          path: |
+            artifacts/installer/*.exe
+            artifacts/*-portable.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = @(Get-ChildItem artifacts/installer/*.exe, artifacts/*-portable.exe | ForEach-Object FullName)
+          gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME @files --clobber
+          } else {
+            gh release create $env:GITHUB_REF_NAME @files --title "Sticky Notes $env:GITHUB_REF_NAME" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

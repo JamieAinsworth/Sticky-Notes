@@ -22,8 +22,8 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // Hosted by dotnet.exe (a console program), so Windows may have opened a console window for us.
-        // Detach from it; a console created just for this process then closes.
+        // When hosted by dotnet.exe (a console program), Windows may have opened a console window for us.
+        // Detach from it; a console created just for this process then closes. No-op for StickyNotes.exe.
         NativeMethods.FreeConsole();
 
         base.OnStartup(e);

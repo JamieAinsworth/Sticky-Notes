@@ -11,11 +11,14 @@
     <AssemblyName>StickyNotes</AssemblyName>
     <RootNamespace>StickyNotes</RootNamespace>
     <Product>Sticky Notes</Product>
+    <Version>1.0.0</Version>
+    <ApplicationIcon>Assets\StickyNotes.ico</ApplicationIcon>
     <!-- WPF owns the process, so per-monitor DPI is declared in app.manifest. -->
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
-    <!-- No StickyNotes.exe launcher: Defender flags the unsigned apphost. The app runs as
-         "dotnet StickyNotes.dll" instead (see App.LaunchCommand). -->
-    <UseAppHost>false</UseAppHost>
+    <!-- Local builds skip the StickyNotes.exe launcher because Defender flags the unsigned apphost on
+         some machines; they run as "dotnet StickyNotes.dll". build.ps1 sets UseAppHost=true for the
+         self-contained exe and installer. -->
+    <UseAppHost Condition="'$(UseAppHost)' == ''">false</UseAppHost>
   </PropertyGroup>
 
 </Project>
