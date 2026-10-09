@@ -7,7 +7,8 @@ namespace StickyNotes;
 public static class StartupManager
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "RhyhoStickyNotes";
+    private const string ValueName = "StickyNotes";
+    private const string LegacyValueName = "RhyhoStickyNotes";
 
     // Launched at sign-in: stay in the tray rather than opening an empty note when there are none.
     private static string Command => $"{App.LaunchCommand} {App.BackgroundArg}";
@@ -21,7 +22,8 @@ public static class StartupManager
     }
 
     private static bool IsOurs(string? value) =>
-        value != null && value.StartsWith(App.LaunchCommand, StringComparison.OrdinalIgnoreCase);
+        value != null && (string.Equals(value, App.LaunchCommand, StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith(App.LaunchCommand + " ", StringComparison.OrdinalIgnoreCase));
 
     public static void SetEnabled(bool enabled)
     {
@@ -29,7 +31,11 @@ public static class StartupManager
         if (enabled)
             key.SetValue(ValueName, Command);
         else
+        {
             key.DeleteValue(ValueName, throwOnMissingValue: false);
+            if (IsOurs(key.GetValue(LegacyValueName) as string))
+                key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
+        }
     }
 
     /// <summary>Upgrades entries written by older versions, which didn't pass the background flag.</summary>
@@ -37,13 +43,26 @@ public static class StartupManager
     {
         try
         {
+            using (var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true))
+            {
+                if (key != null) MigrateLegacyEntry(key);
+            }
             var value = ReadValue();
             if (IsOurs(value) && !string.Equals(value, Command, StringComparison.OrdinalIgnoreCase))
                 SetEnabled(true);
         }
-        catch
+        catch (Exception ex)
         {
-            // Not critical.
+            System.Windows.MessageBox.Show("Couldn't update the startup setting:\n" + ex.Message,
+                "Sticky Notes", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
         }
+    }
+
+    internal static void MigrateLegacyEntry(RegistryKey key)
+    {
+        if (!IsOurs(key.GetValue(LegacyValueName) as string)) return;
+        if (key.GetValue(ValueName) == null)
+            key.SetValue(ValueName, Command);
+        key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
     }
 }

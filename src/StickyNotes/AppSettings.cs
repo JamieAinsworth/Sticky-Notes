@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace StickyNotes;
 
 /// <summary>
-/// User preferences. Always stored in %APPDATA%\RhyhoStickyNotes\settings.json so the app can find
+/// User preferences. Always stored in %APPDATA%\StickyNotes\settings.json so the app can find
 /// the notes even when they're kept somewhere else.
 /// </summary>
 public sealed class AppSettings
@@ -14,7 +14,7 @@ public sealed class AppSettings
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public static string DefaultDataFolder { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RhyhoStickyNotes");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StickyNotes");
 
     public static string SettingsPath { get; } = Path.Combine(DefaultDataFolder, "settings.json");
 
@@ -35,6 +35,10 @@ public sealed class AppSettings
     /// <summary>Loads settings; returns false if none exist yet (first run).</summary>
     public static bool Load()
     {
+        MigrateLegacyData(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RhyhoStickyNotes"),
+            DefaultDataFolder);
+
         try
         {
             if (!File.Exists(SettingsPath)) return false;
@@ -46,6 +50,43 @@ public sealed class AppSettings
             // Unreadable settings: fall back to defaults and let the user run setup again.
             Current = new AppSettings();
             return false;
+        }
+    }
+
+    internal static void MigrateLegacyData(string legacyFolder, string destinationFolder)
+    {
+        string destinationSettings = Path.Combine(destinationFolder, "settings.json");
+        if (File.Exists(destinationSettings) || !Directory.Exists(legacyFolder)) return;
+
+        string legacySettings = Path.Combine(legacyFolder, "settings.json");
+        AppSettings? settings = null;
+        if (File.Exists(legacySettings))
+        {
+            settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(legacySettings), JsonOptions)
+                ?? throw new InvalidDataException("The previous settings file is empty.");
+            if (!string.IsNullOrWhiteSpace(settings.DataFolder) && IsSameFolder(settings.DataFolder, legacyFolder))
+                settings.DataFolder = null;
+        }
+
+        string oldNotes = Path.Combine(legacyFolder, "notes.json");
+        string newNotes = Path.Combine(destinationFolder, "notes.json");
+        if (File.Exists(oldNotes) && File.Exists(newNotes) &&
+            File.ReadAllText(oldNotes) != File.ReadAllText(newNotes))
+        {
+            throw new IOException("Both the old and new data folders contain different notes. " +
+                "No files were overwritten. Please back up and resolve these files before restarting:\n" +
+                oldNotes + "\n" + newNotes);
+        }
+
+        Directory.CreateDirectory(destinationFolder);
+        if (File.Exists(oldNotes) && !File.Exists(newNotes))
+            File.Copy(oldNotes, newNotes);
+
+        if (settings != null)
+        {
+            string temporarySettings = destinationSettings + ".tmp";
+            File.WriteAllText(temporarySettings, JsonSerializer.Serialize(settings, JsonOptions));
+            File.Move(temporarySettings, destinationSettings);
         }
     }
 

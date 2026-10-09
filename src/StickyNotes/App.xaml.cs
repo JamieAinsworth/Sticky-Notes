@@ -7,8 +7,8 @@ namespace StickyNotes;
 
 public partial class App : Application
 {
-    private const string MutexName = @"Local\RhyhoStickyNotes_SingleInstance";
-    private const string NewNoteEventName = @"Local\RhyhoStickyNotes_NewNote";
+    private const string MutexName = @"Local\StickyNotes_SingleInstance";
+    private const string NewNoteEventName = @"Local\StickyNotes_NewNote";
 
     /// <summary>Start quietly in the tray (used when starting with Windows).</summary>
     public const string BackgroundArg = "--background";
@@ -30,6 +30,17 @@ public partial class App : Application
 
         bool background = HasArg(e.Args, BackgroundArg);
 
+        // Avoid migrating data while an older version can still save to its original folder.
+        if (Mutex.TryOpenExisting(@"Local\RhyhoStickyNotes_SingleInstance", out var legacyMutex))
+        {
+            legacyMutex.Dispose();
+            MessageBox.Show("An older version of Sticky Notes is still running. Exit it from the tray menu, " +
+                "then launch this version again to migrate your data.", "Sticky Notes",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
+
         _mutex = new Mutex(true, MutexName, out bool isFirstInstance);
         _newNoteSignal = new EventWaitHandle(false, EventResetMode.AutoReset, NewNoteEventName);
 
@@ -46,7 +57,20 @@ public partial class App : Application
             return;
         }
 
-        if (!AppSettings.Load())
+        bool hasSettings;
+        try
+        {
+            hasSettings = AppSettings.Load();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Couldn't migrate your existing notes and settings:\n" + ex.Message,
+                "Sticky Notes", MessageBoxButton.OK, MessageBoxImage.Error);
+            ExitApp();
+            return;
+        }
+
+        if (!hasSettings)
         {
             var setup = new SetupWindow(firstRun: true, saveCurrentNotes: null);
             setup.ShowDialog();
